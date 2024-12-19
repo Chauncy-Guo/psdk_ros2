@@ -15,6 +15,11 @@
 #include "utils/util_misc.h"
 #include "utils/cal_focus_enum.h"
 
+#include "liveview/dji_camera_image_handler.hpp"
+#include "liveview/dji_camera_stream_decoder.hpp"
+#include "liveview/test_liveview_entry.hpp"
+#include "liveview/test_liveview.hpp"
+
 //! ROS standard msgs
 #include "cv_bridge/cv_bridge.h"
 
@@ -39,7 +44,6 @@
 #include <std_msgs/msg/header.hpp>
 #include <std_msgs/msg/bool.hpp>
 
-
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
@@ -62,6 +66,7 @@ namespace dji_psdk_ros2{
 
             bool initCameraModule(E_DjiMountPosition position);
             bool initLiveViewModule();
+            bool initLiveViewSample();
 
 
             void initService();
@@ -72,6 +77,8 @@ namespace dji_psdk_ros2{
         private:
            
             static void publishCameraH264(E_DjiLiveViewCameraPosition position, const uint8_t *buf, uint32_t bufLen);
+            static void ShowRgbImageCallback(CameraRGBImage img, void *userData);
+            static void PublishRgbImage(CameraRGBImage img, void *userData);
 
         protected:
             bool checkCameraMode(int request_view, int request_source);
@@ -79,6 +86,7 @@ namespace dji_psdk_ros2{
         public:
             T_DjiOsalHandler* osalHandler;
             static VehicleWrapper* ptr_wrapper_;
+            LiveviewSample* liveviewSample_;
 
             std::shared_ptr<rclcpp::Node> psdk_node   = rclcpp::Node::make_shared("dji_psdk_ros2");
             std::shared_ptr<rclcpp::Node> gimbal_node = rclcpp::Node::make_shared("psdk_ros_gimbal_node");
@@ -105,7 +113,8 @@ namespace dji_psdk_ros2{
 
         private:
             static rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr               camera_h264_publisher_;
-            rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr         point_cloud_publisher_ = nullptr;
+            static rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr               camera_rgb_publisher_;
+            rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr                point_cloud_publisher_ = nullptr;
 
     };
 }

@@ -8,7 +8,12 @@ using namespace std::placeholders;
 
 VehicleWrapper* VehicleNode::ptr_wrapper_;
 
+using namespace cv;
+using namespace std;
+
+
 rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr               VehicleNode::camera_h264_publisher_;
+rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr               VehicleNode::camera_rgb_publisher_;
 
 VehicleNode::VehicleNode()
 {
@@ -19,19 +24,30 @@ VehicleNode::VehicleNode()
     osalHandler = DjiPlatform_GetOsalHandler();
 
     initCameraModule(DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1);
-    initLiveViewModule();
+    // initLiveViewModule();
+    initLiveViewSample();
     initTopic();
 
-    osalHandler->TaskSleepMs(500);
-    T_DjiReturnCode returnCode;
-    returnCode = DjiLiveview_StartH264Stream(DJI_LIVEVIEW_CAMERA_POSITION_NO_1, DJI_LIVEVIEW_CAMERA_SOURCE_DEFAULT,publishCameraH264);
-    USER_LOG_INFO("StartH264Stream");
+    // Pub H264
+    // osalHandler->TaskSleepMs(500);
+    // T_DjiReturnCode returnCode;
+    // returnCode = DjiLiveview_StartH264Stream(DJI_LIVEVIEW_CAMERA_POSITION_NO_1, DJI_LIVEVIEW_CAMERA_SOURCE_DEFAULT,publishCameraH264);
+    // USER_LOG_INFO("StartH264Stream");
+
+    // // show rgb image
+    // char mainName[] = "MAIN_CAM";
+    // liveviewSample_->StartMainCameraStream(&ShowRgbImageCallback, &mainName);
+
+    // pub rgb image
+    char mainName[] = "MAIN_CAM";
+    liveviewSample_->StartMainCameraStream(&PublishRgbImage, &mainName);
 
     Camera_CameraManagerSubscribePointCloudAndPub(DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1);
 }
 
 VehicleNode::~VehicleNode(){
     delete ptr_wrapper_;
+    delete liveviewSample_;
     ptr_wrapper_ = nullptr;
     USER_LOG_INFO("DJI PSDK VehicleNode Remove Success");
     rclcpp::shutdown();
@@ -69,8 +85,8 @@ void VehicleNode::getAircraftInfoBaseInfo(){
 bool VehicleNode::initTopic()
 {
     USER_LOG_INFO("Topic startup!");
-    // 视频的publish可能需要用单独的节点来运行
     camera_h264_publisher_             = psdk_node->create_publisher<sensor_msgs::msg::Image>(node_name_ + "/camera_h264_stream", 10);
+    camera_rgb_publisher_              = psdk_node->create_publisher<sensor_msgs::msg::Image>(node_name_ + "/main_camera_images", 1);
     return true;
 }
 
@@ -102,6 +118,15 @@ bool VehicleNode::initLiveViewModule(){
     return true;
 }
 
+bool VehicleNode::initLiveViewSample(){
+    liveviewSample_ = new(std::nothrow) LiveviewSample();
+    if(liveviewSample_ == nullptr){
+        USER_LOG_ERROR("Failed to initialize liveviewSample_");
+        return false;
+    }
+    return true;
+}
+
 void VehicleNode::publishCameraH264(E_DjiLiveViewCameraPosition position, const uint8_t *buf, uint32_t bufLen)
 {
     std::vector<uint8_t> tempRawData(buf, buf+bufLen);
@@ -111,6 +136,44 @@ void VehicleNode::publishCameraH264(E_DjiLiveViewCameraPosition position, const 
     camera_h264_publisher_->publish(img);
 }
 
+void VehicleNode::ShowRgbImageCallback(CameraRGBImage img, void *userData)
+{
+    string name = string(reinterpret_cast<char *>(userData));
+    Mat mat(img.height, img.width, CV_8UC3, img.rawData.data(), img.width * 3);
+
+    cvtColor(mat, mat, COLOR_RGB2BGR);
+    imshow(name, mat);
+
+    cv::waitKey(1);
+}
+
+void VehicleNode::PublishRgbImage(CameraRGBImage img, void *userData) {
+    // 将 RGB 数据转换为 OpenCV Mat
+    Mat mat(img.height, img.width, CV_8UC3, img.rawData.data(), img.width * 3);
+    cv::cvtColor(mat, mat, cv::COLOR_RGB2BGR);
+
+    // 转换为 ROS 2 图像消息并发布
+    auto ros2ImageMsg = std::make_shared<sensor_msgs::msg::Image>();
+    try {
+        ros2ImageMsg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", mat).toImageMsg();
+    } catch (cv_bridge::Exception &e) {
+        return;
+    }
+    camera_rgb_publisher_->publish(*ros2ImageMsg);
+
+    // Mat yuvImg(img.height, img.width, CV_8UC3, img.rawData.data(), img.width * 3);
+    // cv::Mat bgrImg;
+    // cv::cvtColor(yuvImg, bgrImg, CV_YUV2BGR_I420);
+    // auto ros2ImageMsg = std::make_shared<sensor_msgs::msg::Image>();
+    // try
+    // {
+    //     ros2ImageMsg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgrImg).toImageMsg();
+    // }
+    // catch (cv_bridge::Exception &e)
+    // {
+    // }
+    // camera_rgb_publisher_->publish(*ros2ImageMsg);
+}
 
 T_DjiReturnCode VehicleNode::Camera_CameraManagerSubscribePointCloudAndPub(E_DjiMountPosition position) {
     T_DjiReturnCode returnCode;

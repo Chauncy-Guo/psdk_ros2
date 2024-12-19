@@ -35,12 +35,14 @@ include_directories(modules)
 include_directories(modules/camera)
 # include_directories(modules/hms)
 include_directories(modules/utils)
+include_directories(modules/liveview)
 
 file(GLOB_RECURSE PSDK_NODE dji_psdk_vehicle_node.cpp)
 
 file(GLOB_RECURSE MODULE_SAMPLE_SRC
             modules/*.c*
             modules/camera/*.c*
+            modules/liveview/*.c*
         )
 file(GLOB_RECURSE MODULE_COMMON_SRC ../include/common/*.c*)
 file(GLOB_RECURSE MODULE_HAL_SRC modules/hal/*.c*)
@@ -78,6 +80,23 @@ install(TARGETS
 
 # Try to see if user has OpenCV installed因为额
 # if yes, default callback will display the image
+find_package(OpenCV QUIET)
+if (OpenCV_FOUND)
+    message("\n${PROJECT_NAME}...")
+    message(STATUS "Found OpenCV installed in the system, will use it to display image in AdvancedSensing APIs")
+    message(STATUS " - Includes: ${OpenCV_INCLUDE_DIRS}")
+    message(STATUS " - Libraries: ${OpenCV_LIBRARIES}")
+    add_definitions(-DOPEN_CV_INSTALLED)
+    execute_process(COMMAND opencv_version OUTPUT_VARIABLE OPENCV_VERSION)
+    if (${OPENCV_VERSION} STRLESS "4.0.0")
+        add_definitions(-DOPEN_CV_VERSION_3)
+    else()
+        add_definitions(-DOPEN_CV_VERSION_4)
+    endif()
+else ()
+    message(STATUS "Did not find OpenCV in the system, image data is inside RecvContainer as raw data")
+endif ()
+
 find_package(OpenCV QUIET)
 if (OpenCV_FOUND)
     message("\n${PROJECT_NAME}...")
@@ -146,6 +165,12 @@ if (LIBUSB_FOUND)
 else ()
     message(STATUS "Cannot Find LIBUSB")
 endif (LIBUSB_FOUND)
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCV_INCLUDE_DIRS})
+if (OpenCV_FOUND)
+    target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
+endif ()
+
 
 # if (NOT EXECUTABLE_OUTPUT_PATH)
 #     set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
