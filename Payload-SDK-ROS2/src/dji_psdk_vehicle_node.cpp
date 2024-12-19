@@ -8,6 +8,7 @@ using namespace std::placeholders;
 
 VehicleWrapper* VehicleNode::ptr_wrapper_;
 FFmpegStreamer* VehicleNode::streamer_;
+FFmpegStreamer* VehicleNode::streamer_fpv_;
 
 using namespace cv;
 using namespace std;
@@ -49,11 +50,15 @@ VehicleNode::VehicleNode()
 
     // 初始化 RTMP 推流
     // initRtmpStream(rtmp_url_, width, height, fps);
-    streamer_ = new FFmpegStreamer(rtmp_url_, width, height, fps);
+    streamer_     = new FFmpegStreamer(main_rtmp_url_, width, height, fps);
+    streamer_fpv_ = new FFmpegStreamer(fpv_rtmp_url_, width, height, fps);
 
     // pub rgb image
     char mainName[] = "MAIN_CAM";
     liveviewSample_->StartMainCameraStream(&PublishRgbImage, &mainName);
+
+    char fpvName[] = "FPV_CAM";
+    liveviewSample_->StartFpvCameraStream(&PublishRgbImage_Fpv, &fpvName);
 
     Camera_CameraManagerSubscribePointCloudAndPub(DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1);
 }
@@ -67,14 +72,16 @@ VehicleNode::~VehicleNode(){
 };
 
 void VehicleNode::declareParameter(){
-    psdk_node->declare_parameter<std::string>("rtmpUrl", "rtmp://192.168.3.58:1935/live");
+    psdk_node->declare_parameter<std::string>("mainRtmpUrl", "rtmp://192.168.3.58:1935/live/233");
+    psdk_node->declare_parameter<std::string>("fpvRtmpUrl", "rtmp://192.168.3.58:1935/live/266");
     psdk_node->declare_parameter<std::string>("configJsonPath", "~/ros_workspace/PSDK_ROS2/shells_ros2/Config/dji_sdk_config.json");
     psdk_node->declare_parameter<std::string>("LogFilePath",    "~/ros_workspace/Logs/");
     USER_LOG_INFO("declareParameter success");
 }
 
 void VehicleNode::getParameter(){
-    psdk_node->get_parameter("rtmpUrl", rtmp_url_);
+    psdk_node->get_parameter("mainRtmpUrl", main_rtmp_url_);
+    psdk_node->get_parameter("fpvRtmpUrl",  fpv_rtmp_url_);
     psdk_node->get_parameter("configJsonPath", config_json_path_);
     psdk_node->get_parameter("LogFilePath",    log_file_path_);
     USER_LOG_INFO("getParameter success");
@@ -178,6 +185,12 @@ void VehicleNode::PublishRgbImage(CameraRGBImage img, void *userData) {
 
     // 推流
     pushVideoStream(mat);
+}
+
+void VehicleNode::PublishRgbImage_Fpv(CameraRGBImage img, void *userData){
+    Mat mat(img.height, img.width, CV_8UC3, img.rawData.data(), img.width * 3);
+    cv::cvtColor(mat, mat, cv::COLOR_RGB2BGR);
+    streamer_fpv_->pushFrame(mat);
 }
 
 void VehicleNode::initRtmpStream(const std::string &rtmp_url, int width, int height, int fps) {

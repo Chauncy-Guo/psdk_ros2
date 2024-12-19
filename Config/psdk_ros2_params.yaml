@@ -1,0 +1,6 @@
+/dji_psdk_ros2:
+  ros__parameters:
+    mainRtmpUrl: rtmp://192.168.0.3:1935/live/233
+    fpvRtmpUrl: rtmp://192.168.0.3:1935/live/255
+    configJsonPath: /home/skysys/ros_workspace/psdk_ros2/Config/dji_sdk_config.json
+    LogFilePath: /home/skysys/ros_workspace/Logs/

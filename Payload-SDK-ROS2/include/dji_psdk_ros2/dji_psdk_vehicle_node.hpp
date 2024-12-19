@@ -80,6 +80,7 @@ namespace dji_psdk_ros2{
             static void publishCameraH264(E_DjiLiveViewCameraPosition position, const uint8_t *buf, uint32_t bufLen);
             static void ShowRgbImageCallback(CameraRGBImage img, void *userData);
             static void PublishRgbImage(CameraRGBImage img, void *userData);
+            static void PublishRgbImage_Fpv(CameraRGBImage img, void *userData);
             static void pushVideoStream(const cv::Mat &frame);
 
             void initRtmpStream(const std::string &rtmp_url, int width, int height, int fps);
@@ -88,10 +89,11 @@ namespace dji_psdk_ros2{
             bool checkCameraMode(int request_view, int request_source);
             
         public:
-            T_DjiOsalHandler* osalHandler;
-            static VehicleWrapper* ptr_wrapper_;
-            LiveviewSample* liveviewSample_;
-            static FFmpegStreamer* streamer_;
+            T_DjiOsalHandler*       osalHandler;
+            static VehicleWrapper*  ptr_wrapper_;
+            LiveviewSample*         liveviewSample_;
+            static FFmpegStreamer*  streamer_;
+            static FFmpegStreamer*  streamer_fpv_;
 
             std::shared_ptr<rclcpp::Node> psdk_node   = rclcpp::Node::make_shared("dji_psdk_ros2");
             std::shared_ptr<rclcpp::Node> gimbal_node = rclcpp::Node::make_shared("psdk_ros_gimbal_node");
@@ -111,7 +113,8 @@ namespace dji_psdk_ros2{
 			uint8_t	        cameraTypeIndex_;
 			T_DjiCameraManagerFirmwareVersion firmwareVersion_;
 
-            std::string rtmp_url_;
+            std::string main_rtmp_url_;
+            std::string fpv_rtmp_url_;
             static cv::VideoWriter video_writer_;
             static bool video_writer_initialized_;
 
