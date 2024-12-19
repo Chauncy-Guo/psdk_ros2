@@ -20,6 +20,8 @@
 #include "liveview/test_liveview_entry.hpp"
 #include "liveview/test_liveview.hpp"
 
+#include "ffmpeg_rtmp.hpp"
+
 //! ROS standard msgs
 #include "cv_bridge/cv_bridge.h"
 
@@ -75,10 +77,12 @@ namespace dji_psdk_ros2{
             
 
         private:
-           
             static void publishCameraH264(E_DjiLiveViewCameraPosition position, const uint8_t *buf, uint32_t bufLen);
             static void ShowRgbImageCallback(CameraRGBImage img, void *userData);
             static void PublishRgbImage(CameraRGBImage img, void *userData);
+            static void pushVideoStream(const cv::Mat &frame);
+
+            void initRtmpStream(const std::string &rtmp_url, int width, int height, int fps);
 
         protected:
             bool checkCameraMode(int request_view, int request_source);
@@ -87,6 +91,7 @@ namespace dji_psdk_ros2{
             T_DjiOsalHandler* osalHandler;
             static VehicleWrapper* ptr_wrapper_;
             LiveviewSample* liveviewSample_;
+            static FFmpegStreamer* streamer_;
 
             std::shared_ptr<rclcpp::Node> psdk_node   = rclcpp::Node::make_shared("dji_psdk_ros2");
             std::shared_ptr<rclcpp::Node> gimbal_node = rclcpp::Node::make_shared("psdk_ros_gimbal_node");
@@ -96,11 +101,9 @@ namespace dji_psdk_ros2{
 
 
         private:
-          
             T_DjiAircraftInfoBaseInfo aircraftInfoBaseInfo;
             std::string node_name_;
             std::string config_json_path_;
-           
             std::string log_file_path_;
           
 
@@ -108,8 +111,9 @@ namespace dji_psdk_ros2{
 			uint8_t	        cameraTypeIndex_;
 			T_DjiCameraManagerFirmwareVersion firmwareVersion_;
 
-            std::vector<T_DJIWaypointV2Action> actionVector;
-            uint16_t                actionNum;
+            std::string rtmp_url_;
+            static cv::VideoWriter video_writer_;
+            static bool video_writer_initialized_;
 
         private:
             static rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr               camera_h264_publisher_;

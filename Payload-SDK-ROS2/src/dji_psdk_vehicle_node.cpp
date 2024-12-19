@@ -7,6 +7,7 @@ using namespace dji_psdk_ros2;
 using namespace std::placeholders;
 
 VehicleWrapper* VehicleNode::ptr_wrapper_;
+FFmpegStreamer* VehicleNode::streamer_;
 
 using namespace cv;
 using namespace std;
@@ -14,6 +15,8 @@ using namespace std;
 
 rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr               VehicleNode::camera_h264_publisher_;
 rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr               VehicleNode::camera_rgb_publisher_;
+cv::VideoWriter VehicleNode::video_writer_;
+bool            VehicleNode::video_writer_initialized_;
 
 VehicleNode::VehicleNode()
 {
@@ -38,6 +41,16 @@ VehicleNode::VehicleNode()
     // char mainName[] = "MAIN_CAM";
     // liveviewSample_->StartMainCameraStream(&ShowRgbImageCallback, &mainName);
 
+
+    // RTMP 配置
+    int width = 640;
+    int height = 480;
+    int fps = 30;
+
+    // 初始化 RTMP 推流
+    // initRtmpStream(rtmp_url_, width, height, fps);
+    streamer_ = new FFmpegStreamer(rtmp_url_, width, height, fps);
+
     // pub rgb image
     char mainName[] = "MAIN_CAM";
     liveviewSample_->StartMainCameraStream(&PublishRgbImage, &mainName);
@@ -54,12 +67,14 @@ VehicleNode::~VehicleNode(){
 };
 
 void VehicleNode::declareParameter(){
+    psdk_node->declare_parameter<std::string>("rtmpUrl", "rtmp://192.168.3.58:1935/live");
     psdk_node->declare_parameter<std::string>("configJsonPath", "~/ros_workspace/PSDK_ROS2/shells_ros2/Config/dji_sdk_config.json");
     psdk_node->declare_parameter<std::string>("LogFilePath",    "~/ros_workspace/Logs/");
     USER_LOG_INFO("declareParameter success");
 }
 
 void VehicleNode::getParameter(){
+    psdk_node->get_parameter("rtmpUrl", rtmp_url_);
     psdk_node->get_parameter("configJsonPath", config_json_path_);
     psdk_node->get_parameter("LogFilePath",    log_file_path_);
     USER_LOG_INFO("getParameter success");
@@ -161,18 +176,35 @@ void VehicleNode::PublishRgbImage(CameraRGBImage img, void *userData) {
     }
     camera_rgb_publisher_->publish(*ros2ImageMsg);
 
-    // Mat yuvImg(img.height, img.width, CV_8UC3, img.rawData.data(), img.width * 3);
-    // cv::Mat bgrImg;
-    // cv::cvtColor(yuvImg, bgrImg, CV_YUV2BGR_I420);
-    // auto ros2ImageMsg = std::make_shared<sensor_msgs::msg::Image>();
-    // try
-    // {
-    //     ros2ImageMsg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", bgrImg).toImageMsg();
+    // 推流
+    pushVideoStream(mat);
+}
+
+void VehicleNode::initRtmpStream(const std::string &rtmp_url, int width, int height, int fps) {
+    // 初始化视频流
+    if (video_writer_.isOpened()) {
+        video_writer_.release();
+    }
+
+    int fourcc = VideoWriter::fourcc('f', 'm', 'p', '4'); // 使用 FFmpeg 的 MP4 格式
+    video_writer_ = VideoWriter(rtmp_url, fourcc, fps, Size(width, height), true);
+
+    if (!video_writer_.isOpened()) {
+        RCLCPP_ERROR(psdk_node->get_logger(), "Failed to open RTMP stream: %s", rtmp_url.c_str());
+    } else {
+        RCLCPP_INFO(psdk_node->get_logger(), "RTMP stream initialized: %s", rtmp_url.c_str());
+        video_writer_initialized_ = true;
+    }
+}
+
+void VehicleNode::pushVideoStream(const cv::Mat &frame) {
+    // // opencv + gstreamer的方式
+    // if (video_writer_initialized_ && video_writer_.isOpened()) {
+    //     video_writer_.write(frame); // 将视频帧写入 RTMP 流
     // }
-    // catch (cv_bridge::Exception &e)
-    // {
-    // }
-    // camera_rgb_publisher_->publish(*ros2ImageMsg);
+
+    // ffmpeg的方式
+    streamer_->pushFrame(frame);
 }
 
 T_DjiReturnCode VehicleNode::Camera_CameraManagerSubscribePointCloudAndPub(E_DjiMountPosition position) {
