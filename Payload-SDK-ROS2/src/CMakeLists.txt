@@ -52,7 +52,7 @@ file(GLOB_RECURSE MODULE_APP_SRC modules/application.c*)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../include/common/3rdparty)
 link_directories(${CMAKE_CURRENT_LIST_DIR}/../include/psdk_lib/lib/${TOOLCHAIN_NAME})
-link_libraries(${CMAKE_CURRENT_LIST_DIR}/../include/psdk_lib/lib/${TOOLCHAIN_NAME}/libpayloadsdk.a -lstdc++ /usr/lib/aarch64-linux-gnu/libboost_thread.a /usr/lib/aarch64-linux-gnu/libboost_date_time.a)
+link_libraries(${CMAKE_CURRENT_LIST_DIR}/../include/psdk_lib/lib/${TOOLCHAIN_NAME}/libpayloadsdk.a -lstdc++)
 
 
 add_executable(${PROJECT_NAME}
